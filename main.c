@@ -1,3 +1,5 @@
+/*** includes ***/
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -5,7 +7,11 @@
 #include <unistd.h>
 #include <termios.h>
 
+/*** data ***/
+
 struct termios orig_termios;
+
+/*** terminal ***/
 
 // prints an error message and exits the program with status 1
 void die(const char *s)
@@ -68,6 +74,8 @@ void enableRawMode()
     // TCSAFLUSH - apply the change immediately and discard any input that hasn't been read
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
+
+/*** init ***/
 
 int main()
 {
