@@ -7,6 +7,11 @@
 #include <unistd.h>
 #include <termios.h>
 
+/*** defines ***/
+
+// ctrl-key macro to bitwise-AND the key with 0x1f (00011111) to get the ASCII value of the ctrl-key
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 /*** data ***/
 
 struct termios orig_termios;
@@ -101,8 +106,8 @@ int main()
             printf("%d ('%c')\r\n", c, c);
         }
 
-        // if the character is 'q' exit the program
-        if (c == 'q')
+        // if the character is the ctrl-q key, break the loop
+        if (c == CTRL_KEY('q'))
             break;
     }
 
