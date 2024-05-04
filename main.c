@@ -47,6 +47,12 @@ void enableRawMode()
     // ISIG - enable ctrl-c and ctrl-z
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
+    // c_cc - control characters
+    // VMIN - minimum number of bytes of input needed before read() can return
+    // VTIME - maximum amount of time to wait before read() returns
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 1;
+
     // set the terminal attributes to the raw struct
     // TCSAFLUSH - apply the change immediately and discard any input that hasn't been read
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
@@ -56,11 +62,13 @@ int main()
 {
     enableRawMode();
 
-    char c;
-
-    // read a byte from the standard input and store it in the variable 'c'
-    while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q')
+    while (1)
     {
+        char c = '\0';
+
+        // read a character from the standard input
+        read(STDIN_FILENO, &c, 1);
+
         // iscntrl - checks if the character is a control character
         if (iscntrl(c))
         {
@@ -72,6 +80,10 @@ int main()
             // print the ASCII value and the character
             printf("%d ('%c')\r\n", c, c);
         }
+
+        // if the character is 'q' exit the program
+        if (c == 'q')
+            break;
     }
 
     return 0;
