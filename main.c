@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -6,19 +7,29 @@
 
 struct termios orig_termios;
 
+// prints an error message and exits the program with status 1
+void die(const char *s)
+{
+    perror(s);
+    exit(1);
+}
+
 // disables raw mode and enables canonical mode
 void disableRawMode()
 {
     // save the original terminal attributes to the orig_termios struct to apply them after the program ends
     // TCSAFLUSH - apply the change immediately and discard any input that hasn't been read
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
+        die("tcsetattr");
 }
 
 // disables canonical | cooked mode (keyboard input is only sent to the program after pressing [enter]) and enables raw mode
 void enableRawMode()
 {
     // read the current terminal attributes into orig_termios struct
-    tcgetattr(STDIN_FILENO, &orig_termios);
+    if (tcgetattr(STDIN_FILENO, &orig_termios) == -1)
+        die("tcgetattr");
+
     atexit(disableRawMode);
 
     // create a raw struct and copy the orig_termios struct into it modifying the flags
@@ -67,7 +78,8 @@ int main()
         char c = '\0';
 
         // read a character from the standard input
-        read(STDIN_FILENO, &c, 1);
+        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
+            die("read");
 
         // iscntrl - checks if the character is a control character
         if (iscntrl(c))
