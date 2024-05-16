@@ -23,7 +23,7 @@ void die(const char *s)
 {
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
-    
+
     perror(s);
     exit(1);
 }
@@ -100,6 +100,14 @@ char editorReadKey()
 
 /*** output ***/
 
+void editorDrawRows()
+{
+    for (int y = 0; y < 24; y++)
+    {
+        write(STDOUT_FILENO, "~\r\n", 3);
+    }
+}
+
 void editorRefreshScreen()
 {
     // prints the escape sequence to clear the screen
@@ -110,6 +118,10 @@ void editorRefreshScreen()
     // repositions the cursor to the top-left corner
     // \x1b - escape character
     // H - position cursor
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
+    editorDrawRows();
+
     write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
