@@ -21,6 +21,9 @@ struct termios orig_termios;
 // prints an error message and exits the program with status 1
 void die(const char *s)
 {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+    
     perror(s);
     exit(1);
 }
@@ -95,6 +98,21 @@ char editorReadKey()
     return c;
 }
 
+/*** output ***/
+
+void editorRefreshScreen()
+{
+    // prints the escape sequence to clear the screen
+    // \x1b - escape character
+    // [2J - clear entire screen
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+
+    // repositions the cursor to the top-left corner
+    // \x1b - escape character
+    // H - position cursor
+    write(STDOUT_FILENO, "\x1b[H", 3);
+}
+
 /*** input ***/
 
 // waits for a keypress and handles it
@@ -105,6 +123,8 @@ void editorProcessKeypress()
     switch (c)
     {
     case CTRL_KEY('q'):
+        write(STDOUT_FILENO, "\x1b[2J", 4);
+        write(STDOUT_FILENO, "\x1b[H", 3);
         exit(0);
         break;
     }
@@ -118,6 +138,7 @@ int main()
 
     while (1)
     {
+        editorRefreshScreen();
         editorProcessKeypress();
     }
 
