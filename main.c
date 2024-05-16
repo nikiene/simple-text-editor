@@ -14,7 +14,12 @@
 
 /*** data ***/
 
-struct termios orig_termios;
+struct editorConfig
+{
+   struct termios orig_termios;
+};
+
+struct editorConfig E;
 
 /*** terminal ***/
 
@@ -33,7 +38,7 @@ void disableRawMode()
 {
     // save the original terminal attributes to the orig_termios struct to apply them after the program ends
     // TCSAFLUSH - apply the change immediately and discard any input that hasn't been read
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
         die("tcsetattr");
 }
 
@@ -42,13 +47,13 @@ void disableRawMode()
 void enableRawMode()
 {
     // read the current terminal attributes into orig_termios struct
-    if (tcgetattr(STDIN_FILENO, &orig_termios) == -1)
+    if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1)
         die("tcgetattr");
 
     atexit(disableRawMode);
 
     // create a raw struct and copy the orig_termios struct into it modifying the flags
-    struct termios raw = orig_termios;
+    struct termios raw = E.orig_termios;
 
     // iflag - input flags -> bitwise-NOT to disable the flags
     // BRKINT - break condition
