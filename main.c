@@ -34,7 +34,8 @@ void disableRawMode()
         die("tcsetattr");
 }
 
-// disables canonical | cooked mode (keyboard input is only sent to the program after pressing [enter]) and enables raw mode
+// disables canonical | cooked mode (keyboard input is only sent to the program after pressing [enter]) and
+// enables raw mode (keyboard input is sent to the program immediately byte-by-byte)
 void enableRawMode()
 {
     // read the current terminal attributes into orig_termios struct
@@ -80,6 +81,35 @@ void enableRawMode()
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
+// wait a keypress and return it
+char editorReadKey()
+{
+    int nread;
+    char c;
+    while ((nread = read(STDIN_FILENO, &c, 1)) != 1)
+    {
+        if (nread == -1 && errno != EAGAIN)
+            die("read");
+    }
+
+    return c;
+}
+
+/*** input ***/
+
+// waits for a keypress and handles it
+void editorProcessKeypress()
+{
+    char c = editorReadKey();
+
+    switch (c)
+    {
+    case CTRL_KEY('q'):
+        exit(0);
+        break;
+    }
+}
+
 /*** init ***/
 
 int main()
@@ -88,27 +118,7 @@ int main()
 
     while (1)
     {
-        char c = '\0';
-
-        // read a character from the standard input
-        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-            die("read");
-
-        // iscntrl - checks if the character is a control character
-        if (iscntrl(c))
-        {
-            // print the ASCII value of the character
-            printf("%d\r\n", c);
-        }
-        else
-        {
-            // print the ASCII value and the character
-            printf("%d ('%c')\r\n", c, c);
-        }
-
-        // if the character is the ctrl-q key, break the loop
-        if (c == CTRL_KEY('q'))
-            break;
+        editorProcessKeypress();
     }
 
     return 0;
