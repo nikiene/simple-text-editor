@@ -474,11 +474,24 @@ void editorDrawRows(struct abuf *ab)
         // [K - erase in line
         abAppend(ab, "\x1b[K", 3);
 
-        if (y < E.screenrows - 1)
-        {
-            abAppend(ab, "\r\n", 2);
-        }
+        abAppend(ab, "\r\n", 2);
     }
+}
+
+void editorDrawStatusBar(struct abuf *ab)
+{
+    // [7m - invert colors
+    abAppend(ab, "\x1b[7m", 4);
+
+    int len = 0;
+    while (len < E.screencols)
+    {
+        abAppend(ab, "", 1);
+        len++;
+    }
+
+    // [m - reset colors
+    abAppend(ab, "\x1b[m", 3);
 }
 
 void editorRefreshScreen()
@@ -490,10 +503,11 @@ void editorRefreshScreen()
     // [?25l - hide cursor
     abAppend(&ab, "\x1b[?25l", 6);
 
-    // H - position cursor
+    // [H - position cursor
     abAppend(&ab, "\x1b[H", 3);
 
     editorDrawRows(&ab);
+    editorDrawStatusBar(&ab);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
@@ -615,6 +629,8 @@ void initEditor()
 
     if (getWindowSize(&E.screenrows, &E.screencols) == -1)
         die("getWindowSize");
+
+    E.screenrows -= 1;
 }
 
 int main(int argc, char *argv[])
