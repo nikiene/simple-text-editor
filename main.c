@@ -7,6 +7,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -62,6 +63,8 @@ struct editorConfig
     int numrows;
     erow *row;
 
+    int modified;
+
     char *filename;
 
     char statusmsg[80];
@@ -72,6 +75,10 @@ struct editorConfig
 };
 
 struct editorConfig E;
+
+/*** prototypes ***/
+
+void editorSetStatusMessage(const char *fmt, ...);
 
 /*** terminal ***/
 
@@ -347,6 +354,7 @@ void editorAppendRow(char *s, size_t len)
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
+    E.modified = 1;
 }
 
 void editorRowInsertChar(erow *row, int at, int c)
@@ -362,6 +370,7 @@ void editorRowInsertChar(erow *row, int at, int c)
 
     row->chars[at] = c;
     editorUpdateRow(row);
+    E.modified = 1;
 }
 
 /*** editor operations ***/
@@ -377,6 +386,31 @@ void editorInsertChar(int c)
 }
 
 /*** file i/o ***/
+
+// converts the editor rows to a single string
+char *editorRowsToString(int *buflen)
+{
+    int totlen = 0;
+    int j;
+
+    for (j = 0; j < E.numrows; j++)
+        totlen += E.row[j].size + 1;
+
+    *buflen = totlen;
+
+    char *buf = malloc(totlen);
+    char *p = buf;
+
+    for (j = 0; j < E.numrows; j++)
+    {
+        memcpy(p, E.row[j].chars, E.row[j].size);
+        p += E.row[j].size;
+        *p = '\n';
+        p++;
+    }
+
+    return buf;
+}
 
 // opens a file and reads it line by line appending each line to the editor
 void editorOpen(char *filename)
@@ -402,6 +436,38 @@ void editorOpen(char *filename)
     }
     free(line);
     fclose(fp);
+    E.modified = 0;
+}
+
+void editorSave()
+{
+    if (E.filename == NULL)
+        return;
+
+    int len;
+    char *buf = editorRowsToString(&len);
+
+    // O_RDWR - read/write mode
+    // O_CREAT - create the file if it doesn't exist
+    // 0644 - file permissions
+    int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+    if (fd != -1)
+    {
+        if (ftruncate(fd, len) != -1)
+        {
+            if (write(fd, buf, len) == len)
+            {
+                close(fd);
+                free(buf);
+                E.modified = 0;
+                editorSetStatusMessage("%d bytes written to disk", len);
+                return;
+            }
+        }
+        close(fd);
+    }
+    free(buf);
+    editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
 }
 
 /*** append buffer ***/
@@ -524,7 +590,10 @@ void editorDrawStatusBar(struct abuf *ab)
 
     char status[80], rstatus[80];
 
-    int len = snprintf(status, sizeof(status), "%.20s - %d line ", E.filename ? E.filename : "[ Empty File ]", E.numrows);
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
+                       E.filename ? E.filename : "[No Name]", E.numrows,
+                       E.modified ? "(modified)" : "");
+
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d / %d", E.cy + 1, E.numrows);
 
     if (len > E.screencols)
@@ -659,6 +728,10 @@ void editorProcessKeypress()
         exit(0);
         break;
 
+    case CTRL_KEY('s'):
+        editorSave();
+        break;
+
     case HOME_KEY:
         E.cx = 0;
         break;
@@ -723,6 +796,9 @@ void initEditor()
     E.numrows = 0;
 
     E.row = NULL;
+
+    E.modified = 0;
+
     E.filename = NULL;
 
     E.statusmsg[0] = '\0';
@@ -743,7 +819,7 @@ int main(int argc, char *argv[])
         editorOpen(argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
     while (1)
     {
