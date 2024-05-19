@@ -26,6 +26,12 @@
 // ctrl-key macro to bitwise-AND the key with 0x1f (00011111) to get the ASCII value of the ctrl-key
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+/**
+ * @brief Enumeration representing the different keys used in the editor.
+ * 
+ * This enumeration defines the different keys that can be used in the editor.
+ * Each key is represented by a unique value.
+ */
 enum editorKey
 {
     BACKSPACE = 127,
@@ -50,40 +56,59 @@ typedef struct editorRow
     char *render;
 } erow;
 
+/**
+ * @struct editorConfig
+ * @brief Represents the configuration of the text editor.
+ *
+ * The editorConfig struct stores various properties and settings related to the text editor.
+ * It includes information about the cursor position, screen dimensions, number of rows, modified status,
+ * filename, status message, and terminal settings.
+ */
 struct editorConfig
 {
-    int cx, cy;
-    int rx;
+    int cx, cy; /**< The x and y coordinates of the cursor. */
+    int rx;     /**< The index of the cursor in the rendered row. */
 
-    int rowoff;
-    int coloff;
+    int rowoff; /**< The offset of the displayed rows. */
+    int coloff; /**< The offset of the displayed columns. */
 
-    int screenrows;
-    int screencols;
+    int screenrows; /**< The number of rows in the terminal screen. */
+    int screencols; /**< The number of columns in the terminal screen. */
 
-    int numrows;
-    erow *row;
+    int numrows; /**< The total number of rows in the text buffer. */
+    erow *row;   /**< An array of erow structs representing each row of the text buffer. */
 
-    int modified;
+    int modified; /**< Flag indicating if the text buffer has been modified. */
 
-    char *filename;
+    char *filename; /**< The name of the file being edited. */
 
-    char statusmsg[80];
+    char statusmsg[80];    /**< The status message to be displayed in the editor. */
+    time_t statusmsg_time; /**< The time at which the status message was set. */
 
-    time_t statusmsg_time;
-
-    struct termios orig_termios;
+    struct termios orig_termios; /**< The original terminal settings. */
 };
 
 struct editorConfig E;
 
 /*** prototypes ***/
 
+/**
+ * Sets the status message of the editor.
+ *
+ * @param fmt The format string for the status message.
+ * @param ... Additional arguments to be formatted into the status message.
+ * @return None
+ */
 void editorSetStatusMessage(const char *fmt, ...);
 
 /*** terminal ***/
 
-// prints an error message and exits the program with status 1
+/**
+ * Prints an error message and exits the program with status 1.
+ *
+ * @param s The error message to be printed.
+ *
+ */
 void die(const char *s)
 {
     // [2J - clear entire screen
@@ -96,17 +121,35 @@ void die(const char *s)
     exit(1);
 }
 
-// disables raw mode and enables canonical mode
+/**
+ * Disables raw mode and enables canonical mode.
+ *
+ * This function is responsible for disabling raw mode and enabling canonical mode
+ * in the terminal. It saves the original terminal attributes to the `orig_termios`
+ * struct to apply them after the program ends. The `TCSAFLUSH` flag is used to apply
+ * the change immediately and discard any input that hasn't been read.
+ *
+ * @param None
+ * @return None
+ */
 void disableRawMode()
 {
-    // save the original terminal attributes to the orig_termios struct to apply them after the program ends
-    // TCSAFLUSH - apply the change immediately and discard any input that hasn't been read
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
         die("tcsetattr");
 }
 
-// disables canonical | cooked mode (keyboard input is only sent to the program after pressing [enter]) and
-// enables raw mode (keyboard input is sent to the program immediately byte-by-byte)
+/**
+ * Disables canonical mode (keyboard input is only sent to the program after pressing [enter])
+ * and enables raw mode (keyboard input is sent to the program immediately byte-by-byte).
+ *
+ * This function reads the current terminal attributes into the `orig_termios` struct,
+ * creates a raw struct and copies the `orig_termios` struct into it, modifying the flags
+ * to enable raw mode. It also sets the minimum number of bytes of input needed before `read()`
+ * can return to 0 and the maximum amount of time to wait before `read()` returns to 1.
+ *
+ * @param None
+ * @return None
+ */
 void enableRawMode()
 {
     // read the current terminal attributes into orig_termios struct
@@ -152,7 +195,12 @@ void enableRawMode()
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-// wait a keypress and return it
+/**
+ * Reads a keypress from the user and returns the corresponding key code.
+ *
+ * @param None
+ * @return The key code of the pressed key.
+ */
 int editorReadKey()
 {
     int nread;
@@ -237,6 +285,13 @@ int editorReadKey()
     }
 }
 
+/**
+ * Retrieves the current cursor position in the terminal.
+ *
+ * @param rows Pointer to an integer variable to store the row position of the cursor.
+ * @param cols Pointer to an integer variable to store the column position of the cursor.
+ * @return 0 if successful, -1 otherwise.
+ */
 int getCursorPosition(int *rows, int *cols)
 {
     char buf[32];
@@ -268,6 +323,18 @@ int getCursorPosition(int *rows, int *cols)
     return -1;
 }
 
+/**
+ * Retrieves the size of the terminal window.
+ *
+ * This function uses the `ioctl` system call to get the window size of the terminal.
+ * If the `ioctl` call fails or the window size is 0, it uses an escape sequence to position
+ * the cursor at the bottom-right corner of the screen and then calls `getCursorPosition`
+ * to get the actual window size.
+ *
+ * @param rows Pointer to an integer to store the number of rows in the window.
+ * @param cols Pointer to an integer to store the number of columns in the window.
+ * @return 0 if successful, -1 if an error occurred.
+ */
 int getWindowSize(int *rows, int *cols)
 {
     struct winsize ws;
@@ -295,7 +362,13 @@ int getWindowSize(int *rows, int *cols)
 
 /*** row operations ***/
 
-// converts the index of a character in a row from the cx (character index) to the rx (render index)
+/**
+ * Converts the index of a character in a row from the cx (character index) to the rx (render index).
+ *
+ * @param row The row containing the characters.
+ * @param cx The character index in the row.
+ * @return The render index of the character.
+ */
 int editorRowCxToRx(erow *row, int cx)
 {
     int rx = 0;
@@ -309,6 +382,15 @@ int editorRowCxToRx(erow *row, int cx)
     return rx;
 }
 
+/**
+ * Updates the render field of a row.
+ *
+ * This function updates the render field of a given row by converting tabs
+ * into spaces and allocating memory for the updated render string.
+ *
+ * @param row A pointer to the row structure to be updated.
+ * @return None
+ */
 void editorUpdateRow(erow *row)
 {
     int tabs = 0;
@@ -339,11 +421,21 @@ void editorUpdateRow(erow *row)
     row->rsize = idx;
 }
 
+/**
+ * Appends a row to the editor.
+ *
+ * @param s The string to append as a row.
+ * @param len The length of the string.
+ * @return None
+ */
 void editorAppendRow(char *s, size_t len)
 {
+    // Reallocate memory for the rows
     E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
 
     int at = E.numrows;
+
+    // Allocate memory for the characters in the row
     E.row[at].size = len;
     E.row[at].chars = malloc(len + 1);
     memcpy(E.row[at].chars, s, len);
@@ -352,12 +444,50 @@ void editorAppendRow(char *s, size_t len)
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
 
+    // Update the row
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
     E.modified = 1;
 }
 
+/**
+ * Frees the memory allocated for a row in the editor.
+ *
+ * @param row The row to be freed.
+ * @return None
+ */
+void editorFreeRow(erow *row)
+{
+    free(row->render);
+    free(row->chars);
+}
+
+/**
+ * Deletes a row from the editor.
+ *
+ * @param at The index of the row to delete.
+ * @return None
+ */
+void editorDelRow(int at)
+{
+    if (at < 0 || at >= E.numrows)
+        return;
+
+    editorFreeRow(&E.row[at]);
+    memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
+    E.numrows--;
+    E.modified = 1;
+}
+
+/**
+ * Inserts a character at a given index in a row.
+ *
+ * @param row The row in which the character will be inserted.
+ * @param at The index at which the character will be inserted.
+ * @param c The character to be inserted.
+ * @return None
+ */
 void editorRowInsertChar(erow *row, int at, int c)
 {
     if (at < 0 || at > row->size)
@@ -374,11 +504,19 @@ void editorRowInsertChar(erow *row, int at, int c)
     E.modified = 1;
 }
 
+/**
+ * Deletes a character at a given index in a row.
+ *
+ * @param row The row from which to delete the character.
+ * @param at The index of the character to delete.
+ * @return None
+ */
 void editorRowDelChar(erow *row, int at)
 {
     if (at < 0 || at >= row->size)
         return;
 
+    // shift the characters to the right of the cursor to the left by one
     memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
     row->size--;
     editorUpdateRow(row);
@@ -387,7 +525,13 @@ void editorRowDelChar(erow *row, int at)
 
 /*** editor operations ***/
 
-// inserts a character at the cursor position
+/**
+ * Inserts a character at the cursor position.
+ * If the cursor is at the end of the file, a new empty row is appended before inserting the character.
+ *
+ * @param c The character to be inserted.
+ * @return None
+ */
 void editorInsertChar(int c)
 {
     if (E.cy == E.numrows)
@@ -397,6 +541,38 @@ void editorInsertChar(int c)
     E.cx++;
 }
 
+/**
+ * Appends a string to the end of a row.
+ *
+ * This function appends the given string `s` of length `len` to the end of the specified row.
+ * It reallocates memory for the row's characters, copies the string to the allocated memory,
+ * updates the row's size, adds a null terminator at the end, updates the editor, and marks
+ * the editor as modified.
+ *
+ * @param row The row to append the string to.
+ * @param s The string to append.
+ * @param len The length of the string.
+ * @return None
+ */
+void editorRowAppendString(erow *row, char *s, size_t len)
+{
+    row->chars = realloc(row->chars, row->size + len + 1);
+    memcpy(&row->chars[row->size], s, len);
+    row->size += len;
+    row->chars[row->size] = '\0';
+    editorUpdateRow(row);
+    E.modified = 1;
+}
+
+/**
+ * Deletes a character at the cursor position.
+ * If the cursor is at the end of the file, nothing happens.
+ * If the cursor is not at the beginning of the line, the character to the left of the cursor is deleted.
+ * After deleting the character, the cursor is moved one position to the left.
+ *
+ * @param None
+ * @return None
+ */
 void editorDelChar()
 {
     if (E.cy == E.numrows)
@@ -412,7 +588,17 @@ void editorDelChar()
 
 /*** file i/o ***/
 
-// converts the editor rows to a single string
+/**
+ * Converts the editor rows to a single string.
+ *
+ * This function takes the editor rows and concatenates them into a single string,
+ * separating each row with a newline character. The resulting string is stored in
+ * a dynamically allocated buffer, and the length of the buffer is returned through
+ * the `buflen` parameter.
+ *
+ * @param buflen A pointer to an integer that will store the length of the resulting string.
+ * @return A pointer to the dynamically allocated buffer containing the converted string.
+ */
 char *editorRowsToString(int *buflen)
 {
     int totlen = 0;
@@ -437,7 +623,12 @@ char *editorRowsToString(int *buflen)
     return buf;
 }
 
-// opens a file and reads it line by line appending each line to the editor
+/**
+ * Opens a file and reads it line by line, appending each line to the editor.
+ *
+ * @param filename The name of the file to be opened.
+ * @return None
+ */
 void editorOpen(char *filename)
 {
     free(E.filename);
@@ -452,11 +643,14 @@ void editorOpen(char *filename)
     size_t linecap = 0;
     ssize_t linelen;
 
+    // Read each line of the file
     while ((linelen = getline(&line, &linecap, fp)) != -1)
     {
+        // Remove any trailing newline or carriage return characters
         while (linelen > 0 && (line[linelen - 1] == '\n' ||
                                line[linelen - 1] == '\r'))
             linelen--;
+        // Append the line to the editor
         editorAppendRow(line, linelen);
     }
     free(line);
@@ -464,6 +658,13 @@ void editorOpen(char *filename)
     E.modified = 0;
 }
 
+/**
+ * Saves the contents of the editor buffer to a file.
+ * If the file doesn't exist, it will be created.
+ *
+ * @param None
+ * @return None
+ */
 void editorSave()
 {
     if (E.filename == NULL)
@@ -509,20 +710,34 @@ struct abuf
         NULL, 0   \
     }
 
-// appends a string to the buffer
+/**
+ * Appends a string to the buffer.
+ *
+ * This function reallocates the buffer memory to fit the new string and then
+ * copies the new string to the end of the buffer.
+ *
+ * @param ab The buffer to append the string to.
+ * @param s The string to append.
+ * @param len The length of the string to append.
+ * @return None
+ */
 void abAppend(struct abuf *ab, const char *s, int len)
 {
-    // reallocates the buffer memory to fit the new string
     char *new = realloc(ab->b, ab->len + len);
     if (new == NULL)
         return;
 
-    // copies the new string to the end of the buffer
     memcpy(&new[ab->len], s, len);
     ab->b = new;
     ab->len += len;
 }
 
+/**
+ * Frees the memory allocated for the abuf structure.
+ *
+ * @param ab The abuf structure to be freed.
+ * @return None
+ */
 void abFree(struct abuf *ab)
 {
     free(ab->b);
@@ -530,7 +745,12 @@ void abFree(struct abuf *ab)
 
 /*** output ***/
 
-// scrolls the editor to keep the cursor in view
+/**
+ * Scrolls the editor to keep the cursor in view.
+ *
+ * @param None
+ * @return None
+ */
 void editorScroll()
 {
     E.rx = 0;
@@ -557,6 +777,12 @@ void editorScroll()
     }
 }
 
+/**
+ * Draws the rows of the editor on the screen.
+ *
+ * @param ab The buffer to append the output to.
+ * @return None
+ */
 void editorDrawRows(struct abuf *ab)
 {
     for (int y = 0; y < E.screenrows; y++)
@@ -608,6 +834,12 @@ void editorDrawRows(struct abuf *ab)
     }
 }
 
+/**
+ * Draws the status bar on the screen.
+ *
+ * @param ab The buffer to append the status bar content to.
+ * @return None
+ */
 void editorDrawStatusBar(struct abuf *ab)
 {
     // [7m - invert colors
@@ -645,6 +877,12 @@ void editorDrawStatusBar(struct abuf *ab)
     abAppend(ab, "\r\n", 2);
 }
 
+/**
+ * Draws the message bar on the screen.
+ *
+ * @param ab The output buffer to append the message bar to.
+ * @return None
+ */
 void editorDrawMessageBar(struct abuf *ab)
 {
     abAppend(ab, "\x1b[K", 3);
@@ -657,6 +895,12 @@ void editorDrawMessageBar(struct abuf *ab)
         abAppend(ab, E.statusmsg, msglen);
 }
 
+/**
+ * Refreshes the screen by redrawing all the elements of the text editor.
+ *
+ * @param None
+ * @return None
+ */
 void editorRefreshScreen()
 {
     editorScroll();
@@ -683,6 +927,18 @@ void editorRefreshScreen()
     abFree(&ab);
 }
 
+/**
+ * Sets the status message of the editor.
+ *
+ * This function takes a format string and a variable number of arguments, similar to the `printf` function.
+ * It formats the message according to the format string and stores it in the `E.statusmsg` buffer.
+ * The formatted message is truncated if it exceeds the size of the buffer.
+ * The current time is also stored in `E.statusmsg_time` to track when the status message was set.
+ *
+ * @param fmt The format string for the status message.
+ * @param ... The variable number of arguments to be formatted.
+ * @return None
+ */
 void editorSetStatusMessage(const char *fmt, ...)
 {
     va_list ap;
@@ -694,16 +950,24 @@ void editorSetStatusMessage(const char *fmt, ...)
 
 /*** input ***/
 
-// moves the cursor based on the keypress
+/**
+ * Moves the cursor based on the keypress.
+ *
+ * @param key The key that was pressed.
+ * @return None
+ */
 void editorMoveCursor(int key)
 {
+    // Get the current row
     erow *row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
 
     switch (key)
     {
     case ARROW_LEFT:
+        // Move cursor left if not at the beginning of the line
         if (E.cx != 0)
             E.cx--;
+        // Move cursor to the end of the previous line if at the beginning of the current line
         else if (E.cy > 0)
         {
             E.cy--;
@@ -711,8 +975,10 @@ void editorMoveCursor(int key)
         }
         break;
     case ARROW_RIGHT:
+        // Move cursor right if not at the end of the line
         if (row && E.cx < row->size)
             E.cx++;
+        // Move cursor to the beginning of the next line if at the end of the current line
         else if (row && E.cx == row->size)
         {
             E.cy++;
@@ -720,23 +986,32 @@ void editorMoveCursor(int key)
         }
         break;
     case ARROW_UP:
+        // Move cursor up if not at the top row
         if (E.cy != 0)
             E.cy--;
         break;
     case ARROW_DOWN:
+        // Move cursor down if not at the bottom row
         if (E.cy < E.numrows)
             E.cy++;
         break;
     }
 
+    // Update the current row and its length
     row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
     int rowlen = row ? row->size : 0;
 
+    // Adjust the cursor position if it exceeds the row length
     if (E.cx > rowlen)
         E.cx = rowlen;
 }
 
-// waits for a keypress and handles it
+/**
+ * Waits for a keypress and handles it.
+ *
+ * @param None
+ * @return None
+ */
 void editorProcessKeypress()
 {
     static int quit_times = EDITOR_QUIT_TIMES;
@@ -824,6 +1099,12 @@ void editorProcessKeypress()
 
 /*** init ***/
 
+/**
+ * Initializes the editor by setting the initial values for various editor properties.
+ *
+ * @param None
+ * @return None
+ */
 void initEditor()
 {
     E.cx = 0;
