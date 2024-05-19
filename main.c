@@ -28,7 +28,7 @@
 
 /**
  * @brief Enumeration representing the different keys used in the editor.
- * 
+ *
  * This enumeration defines the different keys that can be used in the editor.
  * Each key is represented by a unique value.
  */
@@ -48,12 +48,19 @@ enum editorKey
 
 /*** data ***/
 
+/**
+ * @struct editorRow
+ * @brief Represents a row in the text editor.
+ *
+ * This struct contains information about the size of the row, the rendered size,
+ * and pointers to the character array and the rendered version of the row.
+ */
 typedef struct editorRow
 {
-    int size;
-    int rsize;
-    char *chars;
-    char *render;
+    int size;     ///< The size of the row.
+    int rsize;    ///< The rendered size of the row.
+    char *chars;  ///< Pointer to the character array of the row.
+    char *render; ///< Pointer to the rendered version of the row.
 } erow;
 
 /**
