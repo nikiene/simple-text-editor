@@ -28,11 +28,8 @@ I still need to add more functions to it, but im happy to say that you can try i
     bash
     sudo apt-get install gcc make
     ```
-    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/7c09f6f3-644c-43d8-bb2a-a08b83e48de6)
+    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/fb09c8db-09cc-477d-b702-e8eb276afe30)
   
-    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/f682706d-d271-4af6-b801-39debbb625b4)
-
-
   For Mac users:
   
     Run this on your terminal:
@@ -57,8 +54,7 @@ I still need to add more functions to it, but im happy to say that you can try i
     make
     ```
     
-    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/bfc831ce-9168-40b4-ab99-deaa5587c857)
-  
+    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/39ba83b8-2b22-4177-bf31-40af592373e3)  
 
     It compiles the code and generates an executable.
 
@@ -66,11 +62,11 @@ I still need to add more functions to it, but im happy to say that you can try i
     ```
     ./main
     ```
-    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/2a5a99db-70e0-4490-ad6f-1d6271452c48)
+    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/4e766c3a-7815-446e-b52e-6d860b0eb8af)
     
     Or you can specify the path to the file you want to open:
 
-    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/f8f00db3-987c-4d6c-b8f9-b6dc9d2f256f)
+    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/842c303e-128f-47c4-9f4b-d3cd68d0a935)
 
 
 #
