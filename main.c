@@ -125,15 +125,15 @@ void editorRefreshScreen();
  */
 char *editorPrompt(char *prompt, void (*callback)(char *, int))
 
-    /*** terminal ***/
+/*** terminal ***/
 
-    /**
-     * Prints an error message and exits the program with status 1.
-     *
-     * @param s The error message to be printed.
-     *
-     */
-    void die(const char *s)
+/**
+ * Prints an error message and exits the program with status 1.
+ *
+ * @param s The error message to be printed.
+ *
+ */
+void die(const char *s)
 {
     // [2J - clear entire screen
     write(STDOUT_FILENO, "\x1b[2J", 4);
