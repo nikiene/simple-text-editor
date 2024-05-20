@@ -120,19 +120,20 @@ void editorRefreshScreen();
  * Prompts the user for input with the given prompt message and returns the user's input.
  *
  * @param prompt The message to display as the prompt.
+ * @param callback A pointer to a function that will be called with the user's input and its length.
  * @return The user's input as a string.
  */
-char *editorPrompt(char *prompt);
+char *editorPrompt(char *prompt, void (*callback)(char *, int))
 
-/*** terminal ***/
+    /*** terminal ***/
 
-/**
- * Prints an error message and exits the program with status 1.
- *
- * @param s The error message to be printed.
- *
- */
-void die(const char *s)
+    /**
+     * Prints an error message and exits the program with status 1.
+     *
+     * @param s The error message to be printed.
+     *
+     */
+    void die(const char *s)
 {
     // [2J - clear entire screen
     write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -403,6 +404,31 @@ int editorRowCxToRx(erow *row, int cx)
         rx++;
     }
     return rx;
+}
+
+/**
+ * Converts a visual column index (rx) to a character index (cx) for a given row.
+ *
+ * @param row The row for which to convert the visual column index.
+ * @param rx The visual column index to convert.
+ * @return The character index (cx) corresponding to the given visual column index (rx).
+ */
+int editorRowRxToCx(erow *row, int rx)
+{
+    int cur_rx = 0;
+    int cx;
+
+    for (cx = 0; cx < row->size; cx++)
+    {
+        if (row->chars[cx] == '\t')
+            cur_rx += (EDITOR_TAB_STOP - 1) - (cur_rx % EDITOR_TAB_STOP);
+
+        cur_rx++;
+
+        if (cur_rx > rx)
+            return cx;
+    }
+    return cx;
 }
 
 /**
@@ -725,7 +751,7 @@ void editorSave()
 {
     if (E.filename == NULL)
     {
-        E.filename = editorPrompt("Save as: %s (ESC to cancel)");
+        E.filename = editorPrompt("Save as: %s (ESC to cancel)", NULL);
         if (E.filename == NULL)
         {
             editorSetStatusMessage("Operation aborted");
@@ -757,6 +783,102 @@ void editorSave()
     }
     free(buf);
     editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
+}
+
+/*** find ***/
+
+/**
+ * Callback function for finding text in the editor.
+ *
+ * This function is called when the user wants to find a specific text in the editor.
+ * It searches for the given query in each row of the editor's content and moves the cursor
+ * to the first occurrence of the query. If the user presses the enter key or the escape key,
+ * the function returns without performing any action.
+ *
+ * @param query The text to search for.
+ * @param key The key that triggered the callback.
+ * @return None
+ */
+void editorFindCallback(char *query, int key)
+{
+    static int last_match = -1;
+    static int direction = 1;
+
+    if (key == '\r' || key == '\x1b')
+    {
+        last_match = -1;
+        direction = 1;
+        return;
+    }
+    else if (key == ARROW_RIGHT || key == ARROW_DOWN)
+    {
+        direction = 1;
+    }
+    else if (key == ARROW_LEFT || key == ARROW_UP)
+    {
+        direction = -1;
+    }
+    else
+    {
+        last_match = -1;
+        direction = 1;
+    }
+
+    if (last_match == -1)
+        direction = 1;
+
+    int current = last_match;
+
+    for (int i = 0; i < E.numrows; i++)
+    {
+        current += direction;
+        if (current == -1)
+            current = E.numrows - 1;
+        else if (current == E.numrows)
+            current = 0;
+
+        erow *row = &E.row[current];
+
+        char *match = strstr(row->render, query);
+        if (match)
+        {
+            last_match = current;
+            E.cy = current;
+            E.cx = editorRowRxToCx(row, match - row->render);
+            E.rowoff = E.numrows;
+
+            break;
+        }
+    }
+}
+
+/**
+ * Searches for a given query in the text editor.
+ *
+ * This function prompts the user to enter a search query and searches for that query in the text editor.
+ * If the user cancels the search by pressing ESC, the function restores the editor's previous state.
+ *
+ * @param None
+ * @return None
+ */
+void editorFind()
+{
+    int saved_cx = E.cx;
+    int saved_cy = E.cy;
+    int saved_coloff = E.coloff;
+    int saved_rowoff = E.rowoff;
+
+    char *query = editorPrompt("Search: %s (ESC | Arrows | Enter)", editorFindCallback);
+
+    if (query)
+        free(query);
+    else
+    {
+        E.cx = saved_cx;
+        E.cy = saved_cy;
+        E.coloff = saved_coloff;
+        E.rowoff = saved_rowoff;
+    }
 }
 
 /*** append buffer ***/
@@ -1015,10 +1137,18 @@ void editorSetStatusMessage(const char *fmt, ...)
 /**
  * Prompts the user for input and returns the entered text.
  *
+ * This function displays a prompt message to the user and waits for the user to enter text.
+ * The entered text is stored in a dynamically allocated string and returned to the caller.
+ * The function also accepts an optional callback function that can be used to perform additional actions on the entered text.
+ *
  * @param prompt The prompt message to display to the user.
+ * @param callback A pointer to a function that takes a char pointer and an integer as arguments.
+ *                 This function will be called with the entered text and the last key pressed as arguments.
+ *                 Pass NULL if no callback function is needed.
  * @return The entered text as a dynamically allocated string.
+ *         Returns NULL if the user cancels the input by pressing the escape key.
  */
-char *editorPrompt(char *prompt)
+char *editorPrompt(char *prompt, void (*callback)(char *, int))
 {
     size_t bufsize = 128;
     char *buf = malloc(bufsize);
@@ -1037,6 +1167,8 @@ char *editorPrompt(char *prompt)
         else if (c == '\x1b')
         {
             editorSetStatusMessage("");
+            if (callback)
+                callback(buf, c);
             free(buf);
             return NULL;
         }
@@ -1045,6 +1177,8 @@ char *editorPrompt(char *prompt)
             if (buflen != 0)
             {
                 editorSetStatusMessage("");
+                if (callback)
+                    callback(buf, c);
                 return buf;
             }
         }
@@ -1058,6 +1192,9 @@ char *editorPrompt(char *prompt)
             buf[buflen++] = c;
             buf[buflen] = '\0';
         }
+
+        if (callback)
+            callback(buf, c);
     }
 }
 
@@ -1163,6 +1300,10 @@ void editorProcessKeypress()
             E.cx = E.row[E.cy].size;
         break;
 
+    case CTRL_KEY('f'):
+        editorFind();
+        break;
+
     case BACKSPACE:
     case CTRL_KEY('h'):
     case DEL_KEY:
@@ -1251,7 +1392,7 @@ int main(int argc, char *argv[])
         editorOpen(argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
+    editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = search");
 
     while (1)
     {
