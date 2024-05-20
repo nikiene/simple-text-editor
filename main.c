@@ -123,7 +123,7 @@ void editorRefreshScreen();
  * @param callback A pointer to a function that will be called with the user's input and its length.
  * @return The user's input as a string.
  */
-char *editorPrompt(char *prompt, void (*callback)(char *, int))
+char *editorPrompt(char *prompt, void (*callback)(char *, int));
 
 /*** terminal ***/
 
