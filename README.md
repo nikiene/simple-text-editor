@@ -68,6 +68,9 @@ I still need to add more functions to it, but im happy to say that you can try i
 
     ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/842c303e-128f-47c4-9f4b-d3cd68d0a935)
 
+    ![image](https://github.com/nikiene/simple-text-editor/assets/80795579/0131c1e7-079d-4891-bc2f-3057cee172a7)
+
+
 
 #
 # INSPIRATIONS:
