@@ -2,6 +2,8 @@
 We finally have a functional editor, were you can open a new or existing file, modify it, and save it to the disk!
 I still need to add more functions to it, but im happy to say that you can try it already.
 
+For now it only works for C programming language, in the future i will update it with more fuctions and other languages support.
+
 # Running the editor:
 
 * Clone the repository:
