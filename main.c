@@ -67,6 +67,8 @@ enum editorHighlight
  * The HL_HIGHLIGHT_NUMBERS flag is used to enable the highlighting of numbers
  * in a text editor. It is defined as a bitwise left shift of 1 by 0, resulting
  * in the value 1.
+ * 
+ * @note This macro uses bitwise left shift operator to set the flag value.
  */
 #define HL_HIGHLIGHT_NUMBERS (1 << 0)
 
@@ -78,8 +80,6 @@ enum editorHighlight
  * present in the text.
  *
  * @note This macro uses bitwise left shift operator to set the flag value.
- *
- * @see text_editor_highlight_strings()
  */
 #define HL_HIGHLIGHT_STRINGS (1 << 1)
 
