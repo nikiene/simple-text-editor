@@ -46,7 +46,59 @@ enum editorKey
     PAGE_DOWN,   // 1008
 };
 
+/**
+ * @brief Enumeration for highlighting different types of text in the editor.
+ */
+enum editorHighlight
+{
+    HL_NORMAL = 0, /**< Normal text */
+    HL_COMMENT,    /**< Comment text */
+    HL_MLCOMMENT,  /**< Multi-line comment text */
+    HL_KEYWORD1,   /**< Keyword type 1 text */
+    HL_KEYWORD2,   /**< Keyword type 2 text */
+    HL_STRING,     /**< String text */
+    HL_NUMBER,     /**< Number text */
+    HL_MATCH       /**< Match text */
+};
+
+/**
+ * @brief This macro defines a flag for highlighting numbers in a text editor.
+ *
+ * The HL_HIGHLIGHT_NUMBERS flag is used to enable the highlighting of numbers
+ * in a text editor. It is defined as a bitwise left shift of 1 by 0, resulting
+ * in the value 1.
+ */
+#define HL_HIGHLIGHT_NUMBERS (1 << 0)
+
+/**
+ * @brief This macro defines a flag for highlighting strings in a text editor.
+ *
+ * The HL_HIGHLIGHT_STRINGS flag is used to enable string highlighting in a text editor.
+ * By setting this flag, the text editor will apply a specific highlighting style to strings
+ * present in the text.
+ *
+ * @note This macro uses bitwise left shift operator to set the flag value.
+ *
+ * @see text_editor_highlight_strings()
+ */
+#define HL_HIGHLIGHT_STRINGS (1 << 1)
+
 /*** data ***/
+
+/**
+ * @struct editorSyntax
+ * Represents the syntax configuration for a specific file type in the text editor.
+ */
+struct editorSyntax
+{
+    char *filetype;                 /**< The name of the file type. */
+    char **filematch;               /**< An array of file match strings. */
+    char **keywords;                /**< An array of keywords. */
+    char *singleline_comment_start; /**< The start of a single-line comment. */
+    char *multiline_comment_start;  /**< The start of a multi-line comment. */
+    char *multiline_comment_end;    /**< The end of a multi-line comment. */
+    int flags;                      /**< Flags for syntax highlighting. */
+};
 
 /**
  * @struct editorRow
@@ -57,10 +109,13 @@ enum editorKey
  */
 typedef struct editorRow
 {
-    int size;     ///< The size of the row.
-    int rsize;    ///< The rendered size of the row.
-    char *chars;  ///< Pointer to the character array of the row.
-    char *render; ///< Pointer to the rendered version of the row.
+    int idx;             ///< The index of the row.
+    int size;            ///< The size of the row.
+    int rsize;           ///< The rendered size of the row.
+    char *chars;         ///< Pointer to the character array of the row.
+    char *render;        ///< Pointer to the rendered version of the row.
+    unsigned char *hl;   ///< Pointer to the syntax highlighting array.
+    int hl_open_comment; ///< Flag to indicate if the row has an open comment.
 } erow;
 
 /**
@@ -92,10 +147,60 @@ struct editorConfig
     char statusmsg[80];    /**< The status message to be displayed in the editor. */
     time_t statusmsg_time; /**< The time at which the status message was set. */
 
+    struct editorSyntax *syntax; /**< The syntax highlighting rules for the editor. */
+
     struct termios orig_termios; /**< The original terminal settings. */
 };
 
 struct editorConfig E;
+
+/*** filetypes ***/
+
+/**
+ * @brief Array of C file extensions for syntax highlighting.
+ *
+ * This array contains the file extensions that are used for syntax highlighting in the simple text editor.
+ * The extensions include ".c", ".h", and ".cpp".
+ * The array is terminated with a NULL value.
+ */
+char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
+
+/**
+ * @brief Array of C keywords used for syntax highlighting.
+ *
+ * This array contains the keywords that are commonly used in the C programming language.
+ * It is used for syntax highlighting in a simple text editor.
+ *
+ * The keywords include control flow statements (e.g., if, while, for), data types (e.g., int, char),
+ * and other keywords (e.g., struct, typedef, static).
+ *
+ * The array is terminated with a NULL value.
+ */
+char *C_HL_keywords[] = {
+    "switch", "if", "while", "for", "break", "continue", "return", "else",
+    "struct", "union", "typedef", "static", "enum", "class", "case",
+    "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+    "void|", NULL};
+
+/**
+ * @struct editorSyntax
+ * Represents a syntax highlighting rule for the text editor.
+ */
+struct editorSyntax HLDB[] = {
+    {"c",
+     C_HL_extensions,
+     C_HL_keywords,
+     "//", "/*", "*/",
+     HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS},
+};
+
+/**
+ * @brief The number of entries in the HLDB array.
+ *
+ * This macro calculates the number of entries in the HLDB array by dividing the size of the array
+ * by the size of a single entry. It is used to determine the length of the array at compile time.
+ */
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** prototypes ***/
 
@@ -146,8 +251,6 @@ void die(const char *s)
 }
 
 /**
- * Disables raw mode and enables canonical mode.
- *
  * This function is responsible for disabling raw mode and enabling canonical mode
  * in the terminal. It saves the original terminal attributes to the `orig_termios`
  * struct to apply them after the program ends. The `TCSAFLUSH` flag is used to apply
@@ -163,9 +266,6 @@ void disableRawMode()
 }
 
 /**
- * Disables canonical mode (keyboard input is only sent to the program after pressing [enter])
- * and enables raw mode (keyboard input is sent to the program immediately byte-by-byte).
- *
  * This function reads the current terminal attributes into the `orig_termios` struct,
  * creates a raw struct and copies the `orig_termios` struct into it, modifying the flags
  * to enable raw mode. It also sets the minimum number of bytes of input needed before `read()`
@@ -348,8 +448,6 @@ int getCursorPosition(int *rows, int *cols)
 }
 
 /**
- * Retrieves the size of the terminal window.
- *
  * This function uses the `ioctl` system call to get the window size of the terminal.
  * If the `ioctl` call fails or the window size is 0, it uses an escape sequence to position
  * the cursor at the bottom-right corner of the screen and then calls `getCursorPosition`
@@ -381,6 +479,237 @@ int getWindowSize(int *rows, int *cols)
         *cols = ws.ws_col;
         *rows = ws.ws_row;
         return 0;
+    }
+}
+
+/*** syntax highlighting ***/
+
+int is_separator(int c)
+{
+    return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
+}
+
+/**
+ * This function updates the syntax highlighting for a specific row in the editor.
+ * It takes a pointer to the row structure and modifies the hl (highlight) array
+ * based on the characters in the row's render array.
+ *
+ * @param row The row to update the syntax highlighting for.
+ * @return None
+ */
+void editorUpdateSyntax(erow *row)
+{
+    row->hl = realloc(row->hl, row->rsize);
+    memset(row->hl, HL_NORMAL, row->rsize);
+
+    if (E.syntax == NULL)
+        return;
+
+    char **keywords = E.syntax->keywords;
+
+    char *scs = E.syntax->singleline_comment_start;
+    char *mcs = E.syntax->multiline_comment_start;
+    char *mce = E.syntax->multiline_comment_end;
+
+    int scs_len = scs ? strlen(scs) : 0;
+    int mcs_len = mcs ? strlen(mcs) : 0;
+    int mce_len = mce ? strlen(mce) : 0;
+
+    int prev_sep = 1;
+    int in_string = 0;
+    int in_comment = (row->idx > 0 && E.row[row->idx - 1].hl_open_comment);
+
+    int i = 0;
+    while (i < row->rsize)
+    {
+        char c = row->render[i];
+        unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
+
+        if (scs_len && !in_string && !in_comment)
+        {
+            if (!strncmp(&row->render[i], scs, scs_len))
+            {
+                memset(&row->hl[i], HL_COMMENT, row->rsize - i);
+                break;
+            }
+        }
+
+        if (mcs_len && mce_len && !in_string)
+        {
+            if (in_comment)
+            {
+                row->hl[i] = HL_MLCOMMENT;
+                if (!strncmp(&row->render[i], mce, mce_len))
+                {
+                    memset(&row->hl[i], HL_MLCOMMENT, mce_len);
+                    i += mce_len;
+                    in_comment = 0;
+                    prev_sep = 1;
+                    continue;
+                }
+                else
+                {
+                    i++;
+                    continue;
+                }
+            }
+            else if (!strncmp(&row->render[i], mcs, mcs_len))
+            {
+                memset(&row->hl[i], HL_MLCOMMENT, mcs_len);
+                i += mcs_len;
+                in_comment = 1;
+                continue;
+            }
+        }
+
+        if (E.syntax->flags & HL_HIGHLIGHT_STRINGS)
+        {
+            if (in_string)
+            {
+                row->hl[i] = HL_STRING;
+                if (c == '\\' && i + 1 < row->rsize)
+                {
+                    row->hl[i + 1] = HL_STRING;
+                    i += 2;
+                    continue;
+                }
+                if (c == in_string)
+                    in_string = 0;
+                i++;
+                prev_sep = 1;
+                continue;
+            }
+            else
+            {
+                if (c == '"' || c == '\'')
+                {
+                    in_string = c;
+                    row->hl[i] = HL_STRING;
+                    i++;
+                    continue;
+                }
+            }
+        }
+
+        if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS)
+        {
+            if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
+                (c == '.' && prev_hl == HL_NUMBER))
+            {
+                row->hl[i] = HL_NUMBER;
+                i++;
+                prev_sep = 0;
+                continue;
+            }
+        }
+
+        if (prev_sep)
+        {
+            int j;
+            for (j = 0; keywords[j]; j++)
+            {
+                int klen = strlen(keywords[j]);
+                int kw2 = keywords[j][klen - 1] == '|';
+                if (kw2)
+                    klen--;
+                if (!strncmp(&row->render[i], keywords[j], klen) &&
+                    is_separator(row->render[i + klen]))
+                {
+                    memset(&row->hl[i], kw2 ? HL_KEYWORD2 : HL_KEYWORD1, klen);
+                    i += klen;
+                    break;
+                }
+            }
+            if (keywords[j] != NULL)
+            {
+                prev_sep = 0;
+                continue;
+            }
+        }
+
+        prev_sep = is_separator(c);
+        i++;
+    }
+
+    int changed = (row->hl_open_comment != in_comment);
+    row->hl_open_comment = in_comment;
+    if (changed && row->idx + 1 < E.numrows)
+        editorUpdateSyntax(&E.row[row->idx + 1]);
+}
+
+/**
+ * Returns the ANSI escape code for the specified syntax highlight.
+ *
+ * @param hl The syntax highlight value.
+ * @return The ANSI escape code for the specified syntax highlight.
+ */
+char *editorSyntaxToColor(int hl)
+{
+    switch (hl)
+    {
+    case HL_COMMENT:
+    case HL_MLCOMMENT:
+        return "\x1b[38;2;98;114;164m";
+
+    case HL_KEYWORD1:
+        return "\x1b[38;2;255;121;198m";
+
+    case HL_KEYWORD2:
+        return "\x1b[38;2;156;220;254m";
+
+    case HL_STRING:
+        return "\x1b[38;2;241;250;140m";
+
+    case HL_NUMBER:
+        return "\x1b[38;2;189;147;249m";
+
+    case HL_MATCH:
+        return "\x1b[38;2;68;71;90m";
+
+    default:
+        return "\x1b[39m";
+    }
+}
+
+/**
+ * Selects the appropriate syntax highlighting for the current file based on its extension.
+ * If no file is currently open, the function returns without making any changes.
+ * The function searches through the HLDB (syntax highlight database) to find a match for the file extension.
+ * Once a match is found, the corresponding syntax structure is assigned to E.syntax.
+ *
+ * @param None
+ * @return None
+ */
+void editorSelectSyntaxHighlight()
+{
+    E.syntax = NULL;
+    if (E.filename == NULL)
+        return;
+
+    char *ext = strrchr(E.filename, '.');
+
+    for (unsigned int j = 0; j < HLDB_ENTRIES; j++)
+    {
+        struct editorSyntax *s = &HLDB[j];
+        unsigned int i = 0;
+        while (s->filematch[i])
+        {
+            int is_ext = (s->filematch[i][0] == '.');
+            if ((is_ext && ext && !strcmp(ext, s->filematch[i])) ||
+                (!is_ext && strstr(E.filename, s->filematch[i])))
+            {
+                E.syntax = s;
+
+                int filerow;
+                for (filerow = 0; filerow < E.numrows; filerow++)
+                {
+                    editorUpdateSyntax(&E.row[filerow]);
+                }
+
+                return;
+            }
+            i++;
+        }
     }
 }
 
@@ -432,8 +761,6 @@ int editorRowRxToCx(erow *row, int rx)
 }
 
 /**
- * Updates the render field of a row.
- *
  * This function updates the render field of a given row by converting tabs
  * into spaces and allocating memory for the updated render string.
  *
@@ -468,6 +795,8 @@ void editorUpdateRow(erow *row)
     }
     row->render[idx] = '\0';
     row->rsize = idx;
+
+    editorUpdateSyntax(row);
 }
 
 /**
@@ -485,6 +814,10 @@ void editorInsertRow(int at, char *s, size_t len)
 
     E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
     memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
+    for (int j = at + 1; j <= E.numrows; j++)
+        E.row[j].idx++;
+
+    E.row[at].idx = at;
 
     E.row[at].size = len;
     E.row[at].chars = malloc(len + 1);
@@ -493,6 +826,9 @@ void editorInsertRow(int at, char *s, size_t len)
 
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
+
+    E.row[at].hl = NULL;
+    E.row[at].hl_open_comment = 0;
 
     editorUpdateRow(&E.row[at]);
 
@@ -510,6 +846,7 @@ void editorFreeRow(erow *row)
 {
     free(row->render);
     free(row->chars);
+    free(row->hl);
 }
 
 /**
@@ -525,6 +862,9 @@ void editorDelRow(int at)
 
     editorFreeRow(&E.row[at]);
     memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
+    for (int j = at; j < E.numrows - 1; j++)
+        E.row[j].idx--;
+
     E.numrows--;
     E.modified = 1;
 }
@@ -618,8 +958,6 @@ void editorInsertChar(int c)
 }
 
 /**
- * Appends a string to the end of a row.
- *
  * This function appends the given string `s` of length `len` to the end of the specified row.
  * It reallocates memory for the row's characters, copies the string to the allocated memory,
  * updates the row's size, adds a null terminator at the end, updates the editor, and marks
@@ -718,6 +1056,8 @@ void editorOpen(char *filename)
     free(E.filename);
     E.filename = strdup(filename);
 
+    editorSelectSyntaxHighlight();
+
     FILE *fp = fopen(filename, "r");
 
     if (!fp)
@@ -757,6 +1097,7 @@ void editorSave()
             editorSetStatusMessage("Operation aborted");
             return;
         }
+        editorSelectSyntaxHighlight();
     }
 
     int len;
@@ -788,8 +1129,6 @@ void editorSave()
 /*** find ***/
 
 /**
- * Callback function for finding text in the editor.
- *
  * This function is called when the user wants to find a specific text in the editor.
  * It searches for the given query in each row of the editor's content and moves the cursor
  * to the first occurrence of the query. If the user presses the enter key or the escape key,
@@ -803,6 +1142,16 @@ void editorFindCallback(char *query, int key)
 {
     static int last_match = -1;
     static int direction = 1;
+
+    static int saved_hl_line;
+    static char *saved_hl = NULL;
+
+    if (saved_hl)
+    {
+        memcpy(E.row[saved_hl_line].hl, saved_hl, E.row[saved_hl_line].rsize);
+        free(saved_hl);
+        saved_hl = NULL;
+    }
 
     if (key == '\r' || key == '\x1b')
     {
@@ -847,14 +1196,16 @@ void editorFindCallback(char *query, int key)
             E.cx = editorRowRxToCx(row, match - row->render);
             E.rowoff = E.numrows;
 
+            saved_hl_line = current;
+            saved_hl = malloc(row->rsize);
+            memcpy(saved_hl, row->hl, row->rsize);
+            memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
             break;
         }
     }
 }
 
 /**
- * Searches for a given query in the text editor.
- *
  * This function prompts the user to enter a search query and searches for that query in the text editor.
  * If the user cancels the search by pressing ESC, the function restores the editor's previous state.
  *
@@ -896,8 +1247,6 @@ struct abuf
     }
 
 /**
- * Appends a string to the buffer.
- *
  * This function reallocates the buffer memory to fit the new string and then
  * copies the new string to the end of the buffer.
  *
@@ -1008,12 +1357,54 @@ void editorDrawRows(struct abuf *ab)
             if (len > E.screencols)
                 len = E.screencols;
 
-            abAppend(ab, &E.row[filerow].render[E.coloff], len);
+            char *c = &E.row[filerow].render[E.coloff];
+            unsigned char *hl = &E.row[filerow].hl[E.coloff];
+
+            char *current_color = "\x1b[39m";
+
+            for (int j = 0; j < len; j++)
+            {
+                if (iscntrl(c[j]))
+                {
+                    char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+                    abAppend(ab, "\x1b[7m", 4);
+                    abAppend(ab, &sym, 1);
+                    abAppend(ab, "\x1b[m", 3);
+                    if (strcmp(current_color, "\x1b[39m") != 0)
+                    {
+                        char *color_code = editorSyntaxToColor(hl[j]);
+                        abAppend(ab, color_code, strlen(color_code));
+                    }
+                }
+                else if (hl[j] == HL_NORMAL)
+                {
+                    if (strcmp(current_color, "\x1b[39m") != 0)
+                    {
+                        abAppend(ab, "\x1b[39m", 5);
+                        current_color = "\x1b[39m";
+                    }
+                    abAppend(ab, &c[j], 1);
+                }
+                else
+                {
+                    char *color = editorSyntaxToColor(hl[j]);
+
+                    if (strcmp(color, current_color) != 0)
+                    {
+                        current_color = color;
+                        char *color_code = editorSyntaxToColor(hl[j]);
+                        abAppend(ab, color_code, strlen(color_code));
+                    }
+                    abAppend(ab, &c[j], 1);
+                }
+            }
+            abAppend(ab, "\x1b[39m", 5);
         }
 
         // [K - erase in line
         abAppend(ab, "\x1b[K", 3);
 
+        //
         abAppend(ab, "\r\n", 2);
     }
 }
@@ -1035,7 +1426,8 @@ void editorDrawStatusBar(struct abuf *ab)
                        E.filename ? E.filename : "[No Name]", E.numrows,
                        E.modified ? "(modified)" : "");
 
-    int rlen = snprintf(rstatus, sizeof(rstatus), "%d / %d", E.cy + 1, E.numrows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d / %d",
+                        E.syntax ? E.syntax->filetype : "no filetype", E.cy + 1, E.numrows);
 
     if (len > E.screencols)
         len = E.screencols;
@@ -1112,8 +1504,6 @@ void editorRefreshScreen()
 }
 
 /**
- * Sets the status message of the editor.
- *
  * This function takes a format string and a variable number of arguments, similar to the `printf` function.
  * It formats the message according to the format string and stores it in the `E.statusmsg` buffer.
  * The formatted message is truncated if it exceeds the size of the buffer.
@@ -1135,8 +1525,6 @@ void editorSetStatusMessage(const char *fmt, ...)
 /*** input ***/
 
 /**
- * Prompts the user for input and returns the entered text.
- *
  * This function displays a prompt message to the user and waits for the user to enter text.
  * The entered text is stored in a dynamically allocated string and returned to the caller.
  * The function also accepts an optional callback function that can be used to perform additional actions on the entered text.
@@ -1376,6 +1764,8 @@ void initEditor()
 
     E.statusmsg[0] = '\0';
     E.statusmsg_time = 0;
+
+    E.syntax = NULL;
 
     if (getWindowSize(&E.screenrows, &E.screencols) == -1)
         die("getWindowSize");
