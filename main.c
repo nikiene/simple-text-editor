@@ -1790,5 +1790,5 @@ int main(int argc, char *argv[])
         editorProcessKeypress();
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
